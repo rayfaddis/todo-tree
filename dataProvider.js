@@ -151,7 +151,10 @@ class TodoDataProvider
         var relativePath = path.relative( entry.folder, fullPath );
         var parts = relativePath.split( path.sep );
 
-        parts.unshift( entry.rootName ? entry.rootName : entry.folder );
+        if( entry.rootName )
+        {
+            parts.unshift( entry.rootName );
+        }
 
         var pathElement;
         var name = entry.match.match.substr( entry.match.column - 1 );

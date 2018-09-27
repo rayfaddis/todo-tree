@@ -192,7 +192,10 @@ function activate( context )
         {
             vscode.workspace.workspaceFolders.map( function( folder )
             {
-                searchList.push( { folder: folder.uri.path, rootName: folder.name } );
+                searchList.push( {
+                    folder: folder.uri.path,
+                    rootName: vscode.workspace.workspaceFolders.length === 1 ? "" : folder.name
+                } );
             } );
         }
     }
@@ -254,6 +257,15 @@ function activate( context )
         function getRootFolder()
         {
             var rootFolder = vscode.workspace.getConfiguration( 'todo-tree' ).get( 'rootFolder' );
+            var envRegex = new RegExp( "\\$\\{(.*?)\\}", "g" );
+            rootFolder = rootFolder.replace( envRegex, function( match, name )
+            {
+                if( name === "workspaceFolder" && vscode.workspace.workspaceFolders.length === 1 )
+                {
+                    return vscode.workspace.workspaceFolders[ 0 ].uri.fsPath;
+                }
+                return process.env[ name ];
+            } );
 
             return rootFolder;
         }
@@ -489,7 +501,7 @@ function activate( context )
                     debug( "onDidChangeActiveTextEditor (uri:" + JSON.stringify( e.document.uri ) + ")" );
 
                     var workspace = vscode.workspace.getWorkspaceFolder( e.document.uri );
-                    var configuredWorkspace = vscode.workspace.getConfiguration( 'todo-tree' ).rootFolder;
+                    var configuredWorkspace = vscode.workspace.getConfiguration( 'todo-tree' ).rootFolder; // TODO WTF?
 
                     if( !workspace || configuredWorkspace )
                     {
@@ -550,12 +562,17 @@ function activate( context )
                     highlights.refreshComplementaryColours();
                 }
 
-                if( e.affectsConfiguration( "todo-tree.globs" ) ||
+                if( e.affectsConfiguration( "todo-tree.rootFolder" ) )
+                {
+                    provider.rebuild();
+                    rebuild();
+                    documentChanged();
+                }
+                else if( e.affectsConfiguration( "todo-tree.globs" ) ||
                     e.affectsConfiguration( "todo-tree.regex" ) ||
                     e.affectsConfiguration( "todo-tree.ripgrep" ) ||
                     e.affectsConfiguration( "todo-tree.ripgrepArgs" ) ||
                     e.affectsConfiguration( "todo-tree.ripgrepMaxBuffer" ) ||
-                    e.affectsConfiguration( "todo-tree.rootFolder" ) ||
                     e.affectsConfiguration( "todo-tree.showTagsFromOpenFilesOnly" ) ||
                     e.affectsConfiguration( "todo-tree.tags" ) )
                 {
@@ -579,7 +596,7 @@ function activate( context )
         {
             if( vscode.workspace.getConfiguration( 'todo-tree' ).trackFile === true )
             {
-                var element = provider.getElement( getRootFolder(), filename );
+                var element = provider.getElement( getRootFolder(), filename );// TODO: Need to change this!
                 if( element )
                 {
                     if( todoTreeViewExplorer.visible === true )
