@@ -29,6 +29,7 @@ function activate( context )
 
     function debug( text )
     {
+        console.log( text );
         if( outputChannel )
         {
             outputChannel.appendLine( text );
@@ -113,13 +114,13 @@ function activate( context )
     {
         function trimMatchesOnSameLine( dataSet )
         {
-            dataSet.forEach( function( match )
+            dataSet.forEach( function( entry )
             {
-                dataSet.map( function( m )
+                dataSet.map( function( e )
                 {
-                    if( match.file === m.file && match.line === m.line && match.column < m.column )
+                    if( entry.match.file === e.match.file && entry.match.line === e.match.line && entry.match.column < e.match.column )
                     {
-                        match.match = match.match.substr( 0, m.column - 1 );
+                        entry.match.match = entry.match.match.substr( 0, e.match.column - 1 );
                     }
                 } );
             } );
@@ -139,11 +140,11 @@ function activate( context )
 
         dataSet.sort( function compare( a, b )
         {
-            return a.file > b.file ? 1 : b.file > a.file ? -1 : a.line > b.line ? 1 : -1;
+            return a.match.file > b.match.file ? 1 : b.match.file > a.match.file ? -1 : a.match.line > b.match.line ? 1 : -1;
         } );
-        dataSet.map( function( match )
+        dataSet.map( function( entry )
         {
-            provider.add( rootFolder, match, tagRegex );
+            provider.add( entry, tagRegex );
         } );
 
         if( interrupted === false )
@@ -155,7 +156,7 @@ function activate( context )
         provider.refresh( true );
     }
 
-    function search( rootFolder, options, done )
+    function search( entry, options, done )
     {
         ripgrep.search( "/", options ).then( matches =>
         {
@@ -164,14 +165,14 @@ function activate( context )
                 matches.forEach( match =>
                 {
                     debug( " Match: " + JSON.stringify( match ) );
-                    dataSet.push( match );
+                    dataSet.push( { folder: entry.folder, rootName: entry.rootName, match: match } );
                 } );
             }
             else if( options.filename )
             {
-                dataSet.filter( match =>
+                dataSet.filter( entry =>
                 {
-                    return match.file === options.filename;
+                    return entry.match.file === options.filename;
                 } );
             }
 
@@ -232,17 +233,22 @@ function activate( context )
         return options;
     }
 
-    function searchWorkspace( searchList )
+    function searchWorkspaces( searchList )
     {
         if( vscode.workspace.getConfiguration( 'todo-tree' ).showTagsFromOpenFilesOnly !== true )
         {
-            var rootFolder = getRootFolder();
-            if( rootFolder !== defaultRootFolder )
+            vscode.workspace.workspaceFolders.map( function( folder )
             {
-                lastRootFolder = rootFolder;
+                debug( "Adding folder: " + folder.uri.path );
+                searchList.push( { folder: folder.uri.path, rootName: folder.name } );
+            } );
+            // var rootFolder = getRootFolder();
+            // if( rootFolder !== defaultRootFolder )
+            // {
+            //     lastRootFolder = rootFolder;
 
-                searchList.push( { folder: rootFolder } );
-            }
+            //     searchList.push( { folder: rootFolder } );
+            // }
         }
     }
 
@@ -272,15 +278,15 @@ function activate( context )
         {
             var entry = searchList.pop();
 
-            debug( "Search: " + JSON.stringify( entry ) );
-
             if( entry.file )
             {
-                search( getRootFolder(), getOptions( entry.file ), iterateSearchList );
+                debug( "Search file: " + JSON.stringify( entry.file ) );
+                search( entry, getOptions( entry.file ), iterateSearchList );
             }
             else if( entry.folder )
             {
-                search( entry.folder, getOptions( entry.folder ), iterateSearchList );
+                debug( "Search folder: " + JSON.stringify( entry.folder ) );
+                search( entry, getOptions( entry.folder ), iterateSearchList );
             }
         }
         else
@@ -302,8 +308,8 @@ function activate( context )
         status.command = "todo-tree.stopScan";
         status.tooltip = "Click to interrupt scan";
 
-        searchOutOfWorkspaceDocuments( searchList );
-        searchWorkspace( searchList );
+        // searchOutOfWorkspaceDocuments( searchList );
+        searchWorkspaces( searchList );
 
         iterateSearchList( searchList );
     }
@@ -320,9 +326,9 @@ function activate( context )
     function refreshFile( filename )
     {
         provider.clear();
-        dataSet = dataSet.filter( match =>
+        dataSet = dataSet.filter( entry =>
         {
-            return match.file !== filename;
+            return entry.match.file !== filename;
         } );
 
         var globs = vscode.workspace.getConfiguration( 'todo-tree' ).globs;
@@ -352,35 +358,12 @@ function activate( context )
         setButtons();
     }
 
-    function showFlatView()
-    {
-        context.workspaceState.update( 'flat', true ).then( refresh );
-    }
-
-    function showTreeView()
-    {
-        context.workspaceState.update( 'flat', false ).then( refresh );
-    }
-
-    function collapse()
-    {
-        context.workspaceState.update( 'expanded', false ).then( refresh );
-    }
-
-    function expand()
-    {
-        context.workspaceState.update( 'expanded', true ).then( refresh );
-    }
-
-    function groupByTag()
-    {
-        context.workspaceState.update( 'grouped', true ).then( refresh );
-    }
-
-    function ungroupByTag()
-    {
-        context.workspaceState.update( 'grouped', false ).then( refresh );
-    }
+    function showFlatView() { context.workspaceState.update( 'flat', true ).then( refresh ); }
+    function showTreeView() { context.workspaceState.update( 'flat', false ).then( refresh ); }
+    function collapse() { context.workspaceState.update( 'expanded', false ).then( refresh ); }
+    function expand() { context.workspaceState.update( 'expanded', true ).then( refresh ); }
+    function groupByTag() { context.workspaceState.update( 'grouped', true ).then( refresh ); }
+    function ungroupByTag() { context.workspaceState.update( 'grouped', false ).then( refresh ); }
 
     function clearFilter()
     {
