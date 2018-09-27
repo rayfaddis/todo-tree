@@ -212,12 +212,17 @@ class TodoDataProvider
 
             if( !child )
             {
+                var elementName = path.basename( fullPath );
+                if( entry.rootName !== undefined )
+                {
+                    elementName = path.join( entry.rootName, elementName );
+                }
                 var folder = relativePath.startsWith( '..' ) ? path.dirname( fullPath ) : path.dirname( relativePath );
                 var pathLabel = ( folder === "." ) ? "" : " (" + folder + ")";
                 pathElement = {
                     type: PATH,
                     file: fullPath,
-                    name: path.basename( fullPath ),
+                    name: elementName,
                     pathLabel: pathLabel,
                     path: relativePath,
                     elements: [],
