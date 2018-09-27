@@ -4,46 +4,15 @@ Object.defineProperty( exports, "__esModule", { value: true } );
 
 var vscode = require( 'vscode' );
 var path = require( "path" );
-var fs = require( 'fs' );
-var commentPatterns = require( 'comment-patterns' );
-var octicons = require( 'octicons' );
-var highlights = require( './highlights.js' );
+var utils = require( './utils.js' );
+var icons = require( './icons.js' );
 
 var elements = [];
 
 const PATH = "path";
 const TODO = "todo";
 
-var defaultColours = [ "red", "green", "blue", "yellow", "magenta", "cyan", "grey" ];
-
 var buildCounter = 1;
-var usedHashes = {};
-
-function hash( text )
-{
-    var hash = 0;
-    if( text.length === 0 )
-    {
-        return hash;
-    }
-    for( var i = 0; i < text.length; i++ )
-    {
-        var char = text.charCodeAt( i );
-        hash = ( ( hash << 5 ) - hash ) + char;
-        hash = hash & hash; // Convert to 32bit integer
-    }
-
-    hash = Math.abs( hash ) % 1000000;
-
-    while( usedHashes[ hash ] !== undefined )
-    {
-        hash++;
-    }
-
-    usedHashes[ hash ] = true;
-
-    return hash;
-}
 
 class TodoDataProvider
 {
@@ -91,88 +60,6 @@ class TodoDataProvider
         }
     }
 
-    getTodoIcon( tag )
-    {
-        function isHexColour( rgb )
-        {
-            return ( typeof rgb === "string" ) && ( rgb.length === 3 || rgb.length === 6 ) && !isNaN( parseInt( rgb, 16 ) );
-        }
-
-        var colour = highlights.getIconColour( tag );
-
-        var darkIconPath = this._context.asAbsolutePath( path.join( "resources/icons", "dark", "todo-green.svg" ) );
-        var lightIconPath = this._context.asAbsolutePath( path.join( "resources/icons", "light", "todo-green.svg" ) );
-
-        var colourName = isHexColour( colour.substr( 1 ) ) ? colour.substr( 1 ) : colour;
-
-        var iconName = highlights.getIcon( tag );
-
-        if( iconName )
-        {
-            if( !octicons[ iconName ] )
-            {
-                iconName = "check";
-            }
-
-            if( this._context.storagePath )
-            {
-                var octiconIconPath = path.join( this._context.storagePath, "todo-" + iconName + "-" + colourName + ".svg" );
-                if( !fs.existsSync( octiconIconPath ) )
-                {
-                    if( !fs.existsSync( this._context.storagePath ) )
-                    {
-                        fs.mkdirSync( this._context.storagePath );
-                    }
-
-                    var octiconIconDefinition = "<?xml version=\"1.0\" encoding=\"iso-8859-1\"?>\n" +
-                        octicons[ iconName ].toSVG( { "xmlns": "http://www.w3.org/2000/svg", "fill": colour } );
-
-                    fs.writeFileSync( octiconIconPath, octiconIconDefinition );
-                }
-
-                darkIconPath = octiconIconPath;
-                lightIconPath = octiconIconPath;
-            }
-        }
-        else if( isHexColour( colour.substr( 1 ) ) )
-        {
-            var colouredIconPath = path.join( this._context.storagePath, "todo-" + colourName + ".svg" );
-            if( !fs.existsSync( colouredIconPath ) )
-            {
-                if( !fs.existsSync( this._context.storagePath ) )
-                {
-                    fs.mkdirSync( this._context.storagePath );
-                }
-
-                var colouredIconDefinition =
-                    "<?xml version=\"1.0\" encoding=\"iso-8859-1\"?>" +
-                    "<svg version=\"1.1\" id=\"Layer_1\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" x=\"0px\" y=\"0px\"" +
-                    "\tviewBox=\"0 0 426.667 426.667\" style=\"enable-background:new 0 0 426.667 426.667;\" xml:space=\"preserve\">" +
-                    "<path style=\"fill:" + colour + ";\" d=\"M213.333,0C95.518,0,0,95.514,0,213.333s95.518,213.333,213.333,213.333" +
-                    "\tc117.828,0,213.333-95.514,213.333-213.333S331.157,0,213.333,0z M174.199,322.918l-93.935-93.931l31.309-31.309l62.626,62.622" +
-                    "\tl140.894-140.898l31.309,31.309L174.199,322.918z\"/>" +
-                    "</svg>";
-
-                fs.writeFileSync( colouredIconPath, colouredIconDefinition );
-            }
-
-            darkIconPath = colouredIconPath;
-            lightIconPath = colouredIconPath;
-        }
-        else if( defaultColours.indexOf( colourName ) > -1 )
-        {
-            darkIconPath = this._context.asAbsolutePath( path.join( "resources/icons", "dark", "todo-" + colour + ".svg" ) );
-            lightIconPath = this._context.asAbsolutePath( path.join( "resources/icons", "light", "todo-" + colour + ".svg" ) );
-        }
-
-        var icon = {
-            dark: darkIconPath,
-            light: lightIconPath
-        };
-
-        return icon;
-    }
-
     getParent( element )
     {
         return element.parent;
@@ -198,7 +85,7 @@ class TodoDataProvider
 
                 if( element.isRootTag )
                 {
-                    treeItem.iconPath = this.getTodoIcon( element.tag ? element.tag : element.name );
+                    treeItem.iconPath = icons.getIcon( this._context, element.tag ? element.tag : element.name );
                 }
                 else if( element.elements && element.elements.length > 0 )
                 {
@@ -211,7 +98,7 @@ class TodoDataProvider
             }
             else if( element.type === TODO )
             {
-                treeItem.iconPath = this.getTodoIcon( element.tag ? element.tag : element.name );
+                treeItem.iconPath = icons.getIcon( this._context, element.tag ? element.tag : element.name );
 
                 treeItem.command = {
                     command: "todo-tree.revealTodo",
@@ -229,11 +116,11 @@ class TodoDataProvider
 
     clear()
     {
-        usedHashes = {};
+        utils.resetHashCache();
         elements = [];
     }
 
-    add( rootFolder, match, tagRegex )
+    add( entry, tagRegex )
     {
         function getRootTagElement( tag )
         {
@@ -253,48 +140,27 @@ class TodoDataProvider
                     elements: [],
                     todos: [],
                     file: fullPath,
-                    id: ( buildCounter * 1000000 ) + hash( tag + fullPath ),
+                    id: ( buildCounter * 1000000 ) + utils.hash( tag + fullPath ),
                 };
                 elements.push( child );
             }
             return child;
         }
 
-        var fullPath = path.resolve( rootFolder, match.file );
-        var relativePath = path.relative( rootFolder, fullPath );
+        var fullPath = path.resolve( entry.folder, entry.match.file );
+        var relativePath = path.relative( entry.folder, fullPath );
         var parts = relativePath.split( path.sep );
 
+        if( entry.rootName )
+        {
+            parts.unshift( entry.rootName );
+        }
+
         var pathElement;
-        var name = match.match.substr( match.column - 1 );
+        var name = entry.match.match.substr( entry.match.column - 1 );
 
-        var commentPattern;
-        try
-        {
-            commentPattern = commentPatterns( match.file );
-        }
-        catch( e )
-        {
-        }
+        name = utils.removeBlockComments( name, entry.match.file );
 
-        if( commentPattern && commentPattern.multiLineComment && commentPattern.multiLineComment.length > 0 )
-        {
-            commentPattern = commentPatterns.regex( match.file );
-            if( commentPattern && commentPattern.regex )
-            {
-                var commentMatch = commentPattern.regex.exec( name );
-                if( commentMatch )
-                {
-                    for( var i = commentPattern.cg.contentStart; i < commentMatch.length; ++i )
-                    {
-                        if( commentMatch[ i ] )
-                        {
-                            name = commentMatch[ i ];
-                            break;
-                        }
-                    }
-                }
-            }
-        }
         var tagMatch;
         if( tagRegex )
         {
@@ -312,9 +178,9 @@ class TodoDataProvider
         var todoElement = {
             type: TODO,
             name: name,
-            line: match.line - 1,
+            line: entry.match.line - 1,
             file: fullPath,
-            id: ( buildCounter * 1000000 ) + hash( JSON.stringify( match ) ),
+            id: ( buildCounter * 1000000 ) + utils.hash( JSON.stringify( entry.match ) ),
             visible: true
         };
 
@@ -325,7 +191,7 @@ class TodoDataProvider
 
         var flat =
             relativePath.startsWith( ".." ) ||
-            rootFolder === this.defaultRootFolder ||
+            entry.folder === this.defaultRootFolder ||
             this._context.workspaceState.get( 'flat', vscode.workspace.getConfiguration( 'todo-tree' ).get( 'flat', false ) );
 
         var parent;
@@ -349,17 +215,22 @@ class TodoDataProvider
 
             if( !child )
             {
+                var elementName = path.basename( fullPath );
+                if( entry.rootName !== undefined )
+                {
+                    elementName = path.join( entry.rootName, elementName );
+                }
                 var folder = relativePath.startsWith( '..' ) ? path.dirname( fullPath ) : path.dirname( relativePath );
                 var pathLabel = ( folder === "." ) ? "" : " (" + folder + ")";
                 pathElement = {
                     type: PATH,
                     file: fullPath,
-                    name: path.basename( fullPath ),
+                    name: elementName,
                     pathLabel: pathLabel,
                     path: relativePath,
                     elements: [],
                     todos: [],
-                    id: ( buildCounter * 1000000 ) + hash( fullPath ),
+                    id: ( buildCounter * 1000000 ) + utils.hash( fullPath ),
                     visible: true
                 };
 
@@ -390,7 +261,7 @@ class TodoDataProvider
                 var child = parent.find( findSubPath, p );
                 if( !child )
                 {
-                    var subPath = path.join( rootFolder, parts.slice( 0, level + 1 ).join( path.sep ) );
+                    var subPath = path.join( entry.folder, parts.slice( 0, level + 1 ).join( path.sep ) );
                     pathElement = {
                         type: PATH,
                         file: subPath,
@@ -398,7 +269,7 @@ class TodoDataProvider
                         parent: pathElement,
                         elements: [],
                         todos: [],
-                        id: ( buildCounter * 1000000 ) + hash( subPath ),
+                        id: ( buildCounter * 1000000 ) + utils.hash( subPath ),
                         visible: true
                     };
                     parent.push( pathElement );
@@ -420,7 +291,7 @@ class TodoDataProvider
 
     rebuild()
     {
-        usedHashes = {};
+        utils.resetHashCache();
         buildCounter = ( buildCounter + 1 ) % 100;
     }
 
