@@ -109,7 +109,7 @@ function activate( context )
         provider.refresh( true );
     }
 
-    function search( entry, options, done )
+    function search( entry, options, done, doneArgument )
     {
         ripgrep.search( "/", options ).then( matches =>
         {
@@ -139,7 +139,7 @@ function activate( context )
                 message += " (" + e.stderr + ")";
             }
             vscode.window.showErrorMessage( "todo-tree: " + message );
-            done();
+            done( doneArgument );
         } );
     }
 
@@ -231,7 +231,7 @@ function activate( context )
         } );
     }
 
-    function iterateSearchList()
+    function iterateSearchList( done )
     {
         if( searchList.length > 0 )
         {
@@ -239,16 +239,21 @@ function activate( context )
 
             if( entry.file )
             {
-                search( entry, getOptions( entry.file ), iterateSearchList );
+                search( entry, getOptions( entry.file ), iterateSearchList, done );
             }
             else if( entry.folder )
             {
-                search( entry, getOptions( entry.folder ), iterateSearchList );
+                search( entry, getOptions( entry.folder ), iterateSearchList, done );
             }
         }
         else
         {
             addToTree();
+            console.log( "done:" + done );
+            if( done )
+            {
+                done();
+            }
         }
     }
 
@@ -294,7 +299,7 @@ function activate( context )
             searchWorkspaces( searchList );
         }
 
-        iterateSearchList( searchList );
+        iterateSearchList();
     }
 
     function setButtons()
@@ -306,7 +311,7 @@ function activate( context )
         vscode.commands.executeCommand( 'setContext', 'todo-tree-filtered', context.workspaceState.get( 'filtered', false ) );
     }
 
-    function refreshFile( filename )
+    function refreshFile( filename, done )
     {
         provider.clear();
         dataSet = dataSet.filter( entry =>
@@ -326,10 +331,11 @@ function activate( context )
                 }
             } );
         }
+        console.log( "add " + add );
         if( add === true )
         {
             searchList = [ { file: filename, folder: "/", rootName: "" } ];
-            iterateSearchList();
+            iterateSearchList( done );
         }
     }
 
@@ -500,28 +506,37 @@ function activate( context )
                 {
                     debug( "onDidChangeActiveTextEditor (uri:" + JSON.stringify( e.document.uri ) + ")" );
 
-                    var workspace = vscode.workspace.getWorkspaceFolder( e.document.uri );
-                    var configuredWorkspace = vscode.workspace.getConfiguration( 'todo-tree' ).rootFolder; // TODO WTF?
+                    // var workspace = vscode.workspace.getWorkspaceFolder( e.document.uri );
+                    // var configuredWorkspace = vscode.workspace.getConfiguration( 'todo-tree' ).rootFolder; // TODO WTF?
 
-                    if( !workspace || configuredWorkspace )
+                    // if( !workspace || configuredWorkspace )
+                    // {
+                    if( e.document.uri && e.document.uri.scheme === "file" )
                     {
-                        if( e.document.uri && e.document.uri.scheme === "file" )
+                        refreshFile( e.document.fileName, function()
                         {
-                            refreshFile( e.document.fileName );
-                        }
+                            console.log( "YEAH!" );
+                            if( selectedDocument !== e.document.fileName )
+                            {
+                                showInTree( e.document.fileName );
+                            }
+
+                            selectedDocument = undefined;
+                        } );
                     }
-                    else if( workspace.uri && ( workspace.uri.fsPath !== lastRootFolder ) )
-                    {
-                        rebuild();
-                    }
+                    // }
+                    // else if( workspace.uri && ( workspace.uri.fsPath !== lastRootFolder ) )
+                    // {
+                    //     rebuild();
+                    // }
                 }
 
-                if( selectedDocument !== e.document.fileName )
-                {
-                    showInTree( e.document.fileName );
-                }
+                // if( selectedDocument !== e.document.fileName )
+                // {
+                //     showInTree( e.document.fileName );
+                // }
 
-                selectedDocument = undefined;
+                // selectedDocument = undefined;
 
                 documentChanged( e.document );
             }
