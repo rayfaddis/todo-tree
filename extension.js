@@ -2,11 +2,13 @@
 
 var vscode = require( 'vscode' );
 var ripgrep = require( './ripgrep' );
-var TreeView = require( "./dataProvider" );
 var fs = require( 'fs' );
 var path = require( 'path' );
 var minimatch = require( 'minimatch' );
+
+var TreeView = require( "./tree.js" );
 var highlights = require( './highlights.js' );
+var config = require( './config.js' );
 
 var defaultRootFolder = "/";
 var lastRootFolder = defaultRootFolder;
@@ -19,13 +21,17 @@ var selectedDocument;
 
 function activate( context )
 {
+    config.init( context );
+
     var decorations = {};
-    var provider = new TreeView.TodoDataProvider( context, defaultRootFolder );
+    var provider = new TreeView.TreeNodeProvider( context );
     var status = vscode.window.createStatusBarItem( vscode.StatusBarAlignment.Left, 0 );
     var outputChannel = vscode.workspace.getConfiguration( 'todo-tree' ).debug ? vscode.window.createOutputChannel( "todo-tree" ) : undefined;
 
     var todoTreeViewExplorer = vscode.window.createTreeView( "todo-tree-view-explorer", { treeDataProvider: provider } );
     var todoTreeView = vscode.window.createTreeView( "todo-tree-view", { treeDataProvider: provider } );
+
+    vscode.commands.executeCommand( 'setContext', 'todo-tree-has-content', true ); // TODO refresh this somewhere
 
     function debug( text )
     {
@@ -97,7 +103,8 @@ function activate( context )
         } );
         dataSet.map( function( entry )
         {
-            provider.add( entry, tagRegex );
+            // provider.add( entry, tagRegex );
+            provider.add( entry.match );
         } );
 
         if( interrupted === false )
@@ -279,7 +286,7 @@ function activate( context )
         dataSet = [];
         searchList = [];
 
-        provider.clear();
+        provider.clear( vscode.workspace.workspaceFolders );
         clearFilter();
 
         interrupted = false;
@@ -314,7 +321,7 @@ function activate( context )
 
     function refreshFile( filename, done )
     {
-        provider.clear();
+        provider.clear( vscode.workspace.workspaceFolders );
         dataSet = dataSet.filter( entry =>
         {
             return entry.match.file !== filename;
@@ -342,7 +349,7 @@ function activate( context )
 
     function refresh()
     {
-        provider.clear();
+        provider.clear( vscode.workspace.workspaceFolders );
         provider.rebuild();
         addToTree();
         setButtons();
@@ -565,6 +572,7 @@ function activate( context )
                 if( e.affectsConfiguration( "todo-tree.rootFolder" ) )
                 {
                     provider.rebuild();
+                    provider.setWorkspaces( vscode.workspace.workspaceFolders );
                     rebuild();
                     documentChanged();
                 }
@@ -581,7 +589,7 @@ function activate( context )
                 }
                 else
                 {
-                    provider.clear();
+                    provider.clear( vscode.workspace.workspaceFolders );
                     provider.rebuild();
                     addToTree();
                     documentChanged();
