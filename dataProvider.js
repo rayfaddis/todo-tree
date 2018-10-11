@@ -190,8 +190,8 @@ class TodoDataProvider
         }
 
         var flat =
-            relativePath.startsWith( ".." ) ||
-            entry.folder === this.defaultRootFolder ||
+            // relativePath.startsWith( ".." ) ||
+            // entry.folder === this.defaultRootFolder ||
             this._context.workspaceState.get( 'flat', vscode.workspace.getConfiguration( 'todo-tree' ).get( 'flat', false ) );
 
         var parent;
@@ -364,8 +364,8 @@ class TodoDataProvider
         var parts = relativePath.split( path.sep );
 
         var flat =
-            relativePath.startsWith( ".." ) ||
-            rootFolder === this.defaultRootFolder ||
+            // relativePath.startsWith( ".." ) ||
+            // rootFolder === this.defaultRootFolder ||
             this._context.workspaceState.get( 'flat', vscode.workspace.getConfiguration( 'todo-tree' ).get( 'flat', false ) );
 
         if( !this._context.workspaceState.get( 'grouped', vscode.workspace.getConfiguration( 'todo-tree' ).get( 'grouped', false ) ) )

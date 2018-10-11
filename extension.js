@@ -129,7 +129,7 @@ function activate( context )
                 } );
             }
 
-            done();
+            done( doneArgument );
 
         } ).catch( e =>
         {
@@ -249,7 +249,8 @@ function activate( context )
         else
         {
             addToTree();
-            console.log( "done:" + done );
+            // console.log( "done:" + done );
+            // console.log( new Error().stack );
             if( done )
             {
                 done();
@@ -506,37 +507,21 @@ function activate( context )
                 {
                     debug( "onDidChangeActiveTextEditor (uri:" + JSON.stringify( e.document.uri ) + ")" );
 
-                    // var workspace = vscode.workspace.getWorkspaceFolder( e.document.uri );
-                    // var configuredWorkspace = vscode.workspace.getConfiguration( 'todo-tree' ).rootFolder; // TODO WTF?
-
-                    // if( !workspace || configuredWorkspace )
-                    // {
                     if( e.document.uri && e.document.uri.scheme === "file" )
                     {
+                        console.log( "refresh file..." );
                         refreshFile( e.document.fileName, function()
                         {
                             console.log( "YEAH!" );
                             if( selectedDocument !== e.document.fileName )
                             {
-                                showInTree( e.document.fileName );
+                                showInTree( e.document.uri );
                             }
 
                             selectedDocument = undefined;
                         } );
                     }
-                    // }
-                    // else if( workspace.uri && ( workspace.uri.fsPath !== lastRootFolder ) )
-                    // {
-                    //     rebuild();
-                    // }
                 }
-
-                // if( selectedDocument !== e.document.fileName )
-                // {
-                //     showInTree( e.document.fileName );
-                // }
-
-                // selectedDocument = undefined;
 
                 documentChanged( e.document );
             }
@@ -607,11 +592,14 @@ function activate( context )
             }
         } ) );
 
-        function showInTree( filename )
+        function showInTree( uri )
         {
             if( vscode.workspace.getConfiguration( 'todo-tree' ).trackFile === true )
             {
-                var element = provider.getElement( getRootFolder(), filename );// TODO: Need to change this!
+                var workspace = vscode.workspace.getWorkspaceFolder( uri );
+
+                var element = provider.getElement( workspace.uri.fsPath, uri.fsPath );// TODO: Need to change this...
+                console.log( "Found:" + element );
                 if( element )
                 {
                     if( todoTreeViewExplorer.visible === true )
