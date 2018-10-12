@@ -33,7 +33,7 @@ function createWorkspaceRootNode( folder )
     };
 }
 
-function createTodoRootNode( result )
+function createTagRootNode( result )
 {
     return {
         isRootTag: true,
@@ -334,7 +334,7 @@ class TreeNodeProvider
 
         if( config.shouldGroup() )
         {
-            // rootNode = nodes.find(
+            rootNode = nodes.find( todoNode.tag );
         }
         else
         {
