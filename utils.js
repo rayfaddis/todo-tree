@@ -1,3 +1,6 @@
+var vscode = require( 'vscode' );
+var config = require( './config.js' );
+
 var commentPatterns = require( 'comment-patterns' );
 
 var usedHashes = {};
@@ -72,7 +75,32 @@ function removeBlockComments( text, fileName )
     return text;
 }
 
+function extractTag( text )
+{
+    var c = vscode.workspace.getConfiguration( 'todo-tree' );
+    var regex = c.get( 'regex' );
+    var flags = c.get( 'regexCaseSensitive' ) ? '' : 'i';
+
+    if( regex.indexOf( "$TAGS" ) > -1 )
+    {
+        var tagRegex = new RegExp( "(" + c.get( 'tags' ).join( "|" ) + ")", flags );
+
+        var tagMatch = tagRegex.exec( text );
+        if( tagMatch )
+        {
+            text = text.substr( tagMatch.index );
+            if( config.shouldGroup() )
+            {
+                text = text.substr( tagMatch[ 0 ].length );
+            }
+        }
+    }
+
+    return { tag: tagMatch[ 0 ], withoutTag: text };
+}
+
 module.exports.hash = hash;
 module.exports.resetHashCache = resetHashCache;
 module.exports.isHexColour = isHexColour;
 module.exports.removeBlockComments = removeBlockComments;
+module.exports.extractTag = extractTag;

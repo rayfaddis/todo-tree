@@ -33,6 +33,21 @@ function createWorkspaceRootNode( folder )
     };
 }
 
+function createTodoRootNode( result )
+{
+    return {
+        isRootTag: true,
+        type: PATH,
+        label: tag,
+        tag: tag,
+        visible: true,
+        elements: [],
+        todos: [],
+        file: fullPath,
+        id: ( buildCounter * 1000000 ) + utils.hash( tag + fullPath )
+    };
+}
+
 function createPathNode( folder, pathElements )
 {
     var fsPath = pathElements.length > 0 ? path.join( folder, pathElements.join( path.sep ) ) : folder;
@@ -56,7 +71,6 @@ function createFlatNode( fsPath, rootNode )
         fsPath: fsPath,
         label: path.basename( fsPath ),
         pathLabel: pathLabel === '.' ? '' : '(' + pathLabel + ')',
-        // path: relativePath,
         nodes: [],
         todos: [],
         id: ( buildCounter * 1000000 ) + utils.hash( fsPath ),
@@ -66,17 +80,72 @@ function createFlatNode( fsPath, rootNode )
 
 function createTodoNode( result )
 {
-    var label = result.match.substr( result.column - 1 );
-    label = utils.removeBlockComments( label, result.file );
+    var extracted = utils.extractTag( result.match.substr( result.column - 1 ) );
 
     return {
         type: TODO,
         fsPath: result.file,
-        label: label,
+        label: utils.removeBlockComments( extracted.withoutTag, result.file ),
+        tag: extracted.tag,
         line: result.line - 1,
         id: ( buildCounter * 1000000 ) + utils.hash( JSON.stringify( result.match ) ),
         visible: true
     };
+}
+
+function locateFlatChildNode( rootNode, result )
+{
+    var findExactPath = function( e )
+    {
+        return e.type === PATH && e.fsPath === this;
+    };
+
+    var childNode = ( rootNode === undefined ? nodes : rootNode.nodes ).find( findExactPath, result.file );
+
+    if( childNode === undefined )
+    {
+        childNode = createFlatNode( result.file, rootNode );
+
+        if( rootNode === undefined )
+        {
+            nodes.push( childNode );
+        }
+        else
+        {
+            rootNode.nodes.push( childNode );
+        }
+    }
+
+    return childNode;
+}
+
+function locateTreeChildNode( rootNode, pathElements )
+{
+    var findPathNode = function( node )
+    {
+        return node.type === PATH && node.pathElement === this;
+    };
+
+    var childNode;
+
+    var parentNode = rootNode;
+
+    pathElements.map( function( element, level )
+    {
+        childNode = parentNode.nodes.find( findPathNode, element );
+        if( childNode === undefined )
+        {
+            childNode = createPathNode( rootNode.fsPath, pathElements.slice( 0, level + 1 ) );
+            parentNode.nodes.push( childNode );
+            parentNode = childNode;
+        }
+        else
+        {
+            parentNode = childNode;
+        }
+    } );
+
+    return childNode;
 }
 
 class TreeNodeProvider
@@ -202,12 +271,6 @@ class TreeNodeProvider
     refresh()
     {
         this._onDidChangeTreeData.fire();
-
-        // TODO: Move to extension.js
-        // if( setViewVisibility === true )
-        // {
-        //     vscode.commands.executeCommand( 'setContext', 'todo-tree-has-content', elements.length > 0 );
-        // }
     }
 
     filter( text, children )
@@ -261,84 +324,43 @@ class TreeNodeProvider
         }, this );
     }
 
-    add( result/* , tagRegex */ )
+    add( result )
     {
+        console.log( "ADD:" + JSON.stringify( result ) );
         var rootNode;
         var pathElements = [];
 
-        nodes.map( function( node )
-        {
-            if( result.file.indexOf( node.fsPath ) === 0 )
-            {
-                var relativePath = path.relative( node.fsPath, result.file );
-                if( relativePath !== "" )
-                {
-                    pathElements = relativePath.split( path.sep );
-                }
-                rootNode = node;
-            }
-        } );
-
         var todoNode = createTodoNode( result );
+
+        if( config.shouldGroup() )
+        {
+            // rootNode = nodes.find(
+        }
+        else
+        {
+            nodes.map( function( node )
+            {
+                if( result.file.indexOf( node.fsPath ) === 0 )
+                {
+                    var relativePath = path.relative( node.fsPath, result.file );
+                    if( relativePath !== "" )
+                    {
+                        pathElements = relativePath.split( path.sep );
+                    }
+                    rootNode = node;
+                }
+            } );
+        }
 
         var childNode;
 
         if( config.shouldFlatten() )
         {
-            var findExactPath = function( e )
-            {
-                return e.type === PATH && e.fsPath === this;
-            };
-
-            // if( config.shouldGroup() && todoElement.tag )
-            // {
-            //     parent = getRootTagElement( todoElement.tag ).elements;
-            // }
-            // else
-            // {
-            //     parent = elements;
-            // }
-
-            childNode = ( rootNode === undefined ? nodes : rootNode.nodes ).find( findExactPath, result.file );
-
-            if( childNode === undefined )
-            {
-                childNode = createFlatNode( result.file, rootNode );
-
-                if( rootNode === undefined )
-                {
-                    nodes.push( childNode );
-                }
-                else
-                {
-                    rootNode.nodes.push( childNode );
-                }
-            }
+            childNode = locateFlatChildNode( rootNode, result );
         }
         else
         {
-            var findPathNode = function( node )
-            {
-                console.log( "node.type:" + node.type + " node.pathElement:" + node.pathElement + " this:" + this );
-                return node.type === PATH && node.pathElement === this;
-            };
-
-            var parentNode = rootNode;
-            pathElements.map( function( element, level )
-            {
-                console.log( "looking..." );
-                childNode = parentNode.nodes.find( findPathNode, element );
-                if( childNode === undefined )
-                {
-                    childNode = createPathNode( rootNode.fsPath, pathElements.slice( 0, level + 1 ) );
-                    parentNode.nodes.push( childNode );
-                    parentNode = childNode;
-                }
-                else
-                {
-                    parentNode = childNode;
-                }
-            } );
+            childNode = locateTreeChildNode( rootNode, pathElements );
         }
 
         if( childNode.todos === undefined )

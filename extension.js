@@ -87,14 +87,6 @@ function activate( context )
 
         debug( "Found " + dataSet.length + " items" );
 
-        var regex = vscode.workspace.getConfiguration( 'todo-tree' ).regex;
-        var flags = '';
-        if( vscode.workspace.getConfiguration( 'todo-tree' ).get( 'regexCaseSensitive' ) === false )
-        {
-            flags += 'i';
-        }
-        var tagRegex = regex.indexOf( "$TAGS" ) > -1 ? new RegExp( "(" + vscode.workspace.getConfiguration( 'todo-tree' ).tags.join( "|" ) + ")", flags ) : undefined;
-
         trimMatchesOnSameLine( dataSet );
 
         dataSet.sort( function compare( a, b )
@@ -103,7 +95,6 @@ function activate( context )
         } );
         dataSet.map( function( entry )
         {
-            // provider.add( entry, tagRegex );
             provider.add( entry.match );
         } );
 
@@ -256,8 +247,6 @@ function activate( context )
         else
         {
             addToTree();
-            // console.log( "done:" + done );
-            // console.log( new Error().stack );
             if( done )
             {
                 done();
@@ -310,13 +299,17 @@ function activate( context )
         iterateSearchList();
     }
 
-    function setButtons()
+    function setButtonsAndContext()
     {
         var c = vscode.workspace.getConfiguration( 'todo-tree' );
         vscode.commands.executeCommand( 'setContext', 'todo-tree-expanded', context.workspaceState.get( 'expanded', c.get( 'expanded', false ) ) );
         vscode.commands.executeCommand( 'setContext', 'todo-tree-flat', context.workspaceState.get( 'flat', c.get( 'flat', false ) ) );
         vscode.commands.executeCommand( 'setContext', 'todo-tree-grouped', context.workspaceState.get( 'grouped', c.get( 'grouped', false ) ) );
         vscode.commands.executeCommand( 'setContext', 'todo-tree-filtered', context.workspaceState.get( 'filtered', false ) );
+
+        var children = provider.getChildren();
+        var empty = children.length === 1 && children[ 0 ].empty === true;
+        vscode.commands.executeCommand( 'setContext', 'todo-tree-has-content', empty === false );
     }
 
     function refreshFile( filename, done )
@@ -352,7 +345,7 @@ function activate( context )
         provider.clear( vscode.workspace.workspaceFolders );
         provider.rebuild();
         addToTree();
-        setButtons();
+        setButtonsAndContext();
     }
 
     function showFlatView() { context.workspaceState.update( 'flat', true ).then( refresh ); }
@@ -368,7 +361,7 @@ function activate( context )
         context.workspaceState.update( 'filtered', false );
         provider.clearFilter();
         provider.refresh();
-        setButtons();
+        setButtonsAndContext();
     }
 
     function addTag()
@@ -481,7 +474,7 @@ function activate( context )
                         context.workspaceState.update( 'filtered', true );
                         provider.filter( currentFilter );
                         provider.refresh();
-                        setButtons();
+                        setButtonsAndContext();
                     }
                 } );
         } ) );
@@ -596,7 +589,7 @@ function activate( context )
                 }
 
                 vscode.commands.executeCommand( 'setContext', 'todo-tree-in-explorer', vscode.workspace.getConfiguration( 'todo-tree' ).showInExplorer );
-                setButtons();
+                setButtonsAndContext();
             }
         } ) );
 
@@ -607,7 +600,7 @@ function activate( context )
                 var workspace = vscode.workspace.getWorkspaceFolder( uri );
 
                 var element = provider.getElement( workspace.uri.fsPath, uri.fsPath );// TODO: Need to change this...
-                console.log( "Found:" + element );
+
                 if( element )
                 {
                     if( todoTreeViewExplorer.visible === true )
@@ -720,7 +713,7 @@ function activate( context )
 
         highlights.refreshComplementaryColours();
 
-        setButtons();
+        setButtonsAndContext();
         rebuild();
 
         if( vscode.window.activeTextEditor )
